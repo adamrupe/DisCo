@@ -13,7 +13,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 def diagram(field, ax=None, size=16, colorbar=False, y_min=0, y_max=None,
                 x_min=0, x_max=None, ticks=True, xtick_spacing=10, ytick_spacing=10,
-                tick_size=None, cmap=plt.cm.Greys, edgecolors='none', return_pcolor=False,
+                tick_size=None, cmap=plt.cm.Greys, edgecolors='none', return_pcolor=False, invert_y=True,
                 **pcolormesh_kwargs):
     '''
     Plots the given 2D field using matplotlib pcolormesh. Returns a matplotlib
@@ -75,7 +75,8 @@ def diagram(field, ax=None, size=16, colorbar=False, y_min=0, y_max=None,
 
     cropped_field = field[y_min:y_max, x_min:x_max]
     im = ax.pcolormesh(cropped_field, cmap=cmap, edgecolors=edgecolors, **pcolormesh_kwargs)
-    ax.invert_yaxis()
+    if invert_y:
+        ax.invert_yaxis()
 
     if colorbar:
         fig.colorbar(im)
@@ -668,7 +669,7 @@ def config_diagram(field, ax=None, size=16, title=None, title_size=None, axes_la
 ###################################################################################################
 
 def spacetime_animate(data_fields, ax=None, size=20, colorbar=False, axes_label_size=None,
-                      y_min=0, y_max=None, x_min=0, x_max=None, title=None,
+                      y_min=0, y_max=None, x_min=0, x_max=None, title=None, invert_y=True,
                       title_size=None, axes=True, ticks=True, xtick_spacing=10,
                       ytick_spacing=10, tick_size=None, cmap=plt.cm.rainbow,
                       edgecolors='none', anim_kwargs={}, **pcolor_kwargs):
@@ -743,7 +744,8 @@ def spacetime_animate(data_fields, ax=None, size=20, colorbar=False, axes_label_
 
     cropped_fields = data_fields[:, y_min:y_max, x_min:x_max]
     im = ax.pcolormesh(cropped_fields[0], cmap=cmap, edgecolors=edgecolors, **pcolor_kwargs)
-    ax.invert_yaxis()
+    if invert_y:
+        ax.invert_yaxis()
 
     if not axes:
         ax.axes.get_xaxis().set_visible(False)
@@ -823,8 +825,8 @@ def spacetime_animate(data_fields, ax=None, size=20, colorbar=False, axes_label_
 
 def comparison_animate(data_fields, state_fields, size=20, 
                       y_min=0, y_max=None, x_min=0, x_max=None, title=None,
-                      title_size=None, ticks=True, xtick_spacing=10,
-                      ytick_spacing=10, tick_size=None, field_cmap=plt.cm.rainbow, state_cmap=plt.cm.ocean,
+                      title_size=None, ticks=True, xtick_spacing=10, invert_y=True,
+                      ytick_spacing=10, tick_size=None, field_cmap=plt.cm.Blues, state_cmap=plt.cm.rainbow,
                       edgecolors='none', anim_kwargs={}, **pcolor_kwargs):
     '''
 
@@ -843,10 +845,11 @@ def comparison_animate(data_fields, state_fields, size=20,
 
     cropped_fields = data_fields[:, y_min:y_max, x_min:x_max]
     im1 = ax1.pcolormesh(cropped_fields[0], cmap=field_cmap, edgecolors=edgecolors, **pcolor_kwargs)
-    ax1.invert_yaxis()
     cropped_states = state_fields[:, y_min:y_max, x_min:x_max]
     im2 = ax2.pcolormesh(cropped_states[0], cmap=state_cmap, edgecolors=edgecolors, **pcolor_kwargs)
-    ax2.invert_yaxis()
+    if invert_y:
+        ax1.invert_yaxis()
+        ax2.invert_yaxis()
 
     if title is not None:
         if title_size is None:

@@ -8,7 +8,8 @@ Includes DiscoReconstructor class and all support functions.
 '''
 
 import numpy as np
-import daal4py as d4p
+#import daal4py as d4p
+import intel_dbscan
 
 from numba import njit
 from scipy.stats import chisquare
@@ -403,6 +404,7 @@ class DiscoReconstructor(object):
                                   'wrap')
         else:
             raise ValueError("boundary_condition must be either 'open' or 'periodic'.")
+
         self._adjusted_shape = (adjusted_T, adjusted_Y, adjusted_X)
         self._bc = boundary_condition
 
@@ -545,23 +547,34 @@ class DiscoReconstructor(object):
         if self.plcs is None:
             raise RuntimeError("Must call .extract() on a training field(s) before calling .cluster_lightcones().")
 
+#        print('shape=',self.plcs.shape,flush=True)
         # Apply temporal decay to lightcone vectors
         past_decays = lightcone_decay_2D(self.past_depth, self.c, past_decay, False)
         self.plcs *= np.sqrt(past_decays)
         future_decays = lightcone_decay_2D(self.future_depth, self.c, future_decay, True)
         self.flcs *= np.sqrt(future_decays)
-        
+
+#        print(self.plcs, flush=True)
+#        print(self.flcs, flush=True)
+
         # Cluster past lightcones
-        past_cluster = dbscan(distributed=True, **past_params).compute(self.plcs)
-        self.pasts = past_cluster.assignments.flatten()
+        past_cluster = intel_dbscan.DBSCAN(distributed=True, **past_params).fit(self.plcs.astype(np.float32))
+        self.pasts = past_cluster.labels_.flatten()
         self.pasts += 1 # so that noise has label '0'
+        self._N_pasts = past_cluster.nClusters + 1 # noise as another cluster
+#        print("Past cluster ditribution: ", self._N_pasts, flush=True)
+#        print(Counter(self.pasts).most_common(30), flush=True)
         del self.plcs
         
         # Cluster future lightcones
-        future_cluster = dbscan(distributed=True, **past_params).compute(self.flcs)
-        self.futures = future_cluster.assignments.flatten()
+        future_cluster = intel_dbscan.DBSCAN(distributed=True, **past_params).fit(self.flcs.astype(np.float32))
+        self.futures = future_cluster.labels_.flatten()
+#        self.futures = self.pasts #future_cluster.labels_.flatten()
         self.futures += 1 # so that noise has label '0'
-        del self.futures
+        self._N_futures = future_cluster.nClusters + 1 # noise as another cluster
+        del self.flcs
+#        print("Future cluster distribution: ", self._N_futures, flush=True)
+#        print(Counter(self.futures).most_common(30), flush=True)
         
         # Need to set self._N_pasts and self._N_futures here
 #         self._N_pasts = total number of dbscan labels (i.e. number of clusters + 1 for noise)
@@ -683,3 +696,4 @@ class DiscoReconstructor(object):
                             (spatial_pad, spatial_pad)
                         )
         self.state_field = np.pad(self.state_field, margin_padding, 'constant')
+
