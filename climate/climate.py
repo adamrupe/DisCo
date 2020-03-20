@@ -1,13 +1,10 @@
 '''
 author: Adam Rupe
 modified: Nalini Kumar
-email: atrupe@ucdavis.edu
-brief: Test run on climate data
-usage: python jupiter.py
-dependencies: python3, numpy, numba, mpi4py, daal4py
+https://github.com/adamrupe/DisCo
+brief: DisCo code for CAM5.1 climate data
+dependencies: see environment.yml
 '''
-
-# OPT: import only parts of os and sys that we need?
 import time, os, sys
 from netCDF4 import Dataset
 
@@ -17,7 +14,7 @@ sys.path.append(module_path)
 
 from source.pdisco import *
 
-#Initialize MPI variables
+# Initialize MPI variables
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -36,22 +33,8 @@ future_K = 10
 past_params = {'nClusters':past_K, 'maxIterations':200}
 future_params = {'nClusters':future_K, 'maxIterations':200}
 
-# Load dat with appropriate halos 
+# Load dat with appropriate halos
 
-# data_dir = "/global/cscratch1/sd/karthik_/GB19/CAM5_TMQ_All-Hist_data/"
-# halo = 1
-# worksize = 6
-# node_total = 2*halo + worksize
-# ranks_per_run = int(7300 / node_total)
-
-# # compute run number and index for that run
-# index = rank % ranks_per_run
-# a = rank - index
-# run = int(a / ranks_per_run) + 1
-
-# run_dir = os.path.join(data_dir, 'run{}'.format(run))
-# filenames = sorted(os.listdir(run_dir))
-# myfiles = filenames[index*worksize : (index+1)*worksize + 2*halo]
 run_dir = "/global/cscratch1/sd/karthik_/GB19/CAM5_TMQ_All-Hist_data/run1/"
 allfiles = sorted(os.listdir(run_dir))
 filenames = allfiles[7144:]
@@ -67,14 +50,12 @@ if rank == 0:
     end = time.time()
     print('load (s): {}'.format(end-start), flush=True)
     start = time.time()
-    
-# Initialize DiscoReconstructor object with past and future lightcone depths
+
 recon = DiscoReconstructor(past_depth, future_depth, c)
 
-# Extract lightcones from my subset of files
 recon.extract(myfield)
 del myfield
-# Do we need this barrier? something to test later
+
 comm.Barrier()
 if rank == 0:
     end = time.time()
@@ -95,12 +76,12 @@ if rank == 0:
     end = time.time()
     print('reconstruct_morphs (s): {}'.format(end-start), flush=True)
 
-comm.Barrier() # necessary?
+comm.Barrier()
 
-if rank == 0: 
+if rank == 0:
     start = time.time()
 
-comm.Allreduce(recon.local_joint_dist, recon.global_joint_dist, op=MPI.SUM ) 
+comm.Allreduce(recon.local_joint_dist, recon.global_joint_dist, op=MPI.SUM )
 
 if rank == 0:
     end = time.time()
@@ -130,7 +111,12 @@ if rank == 0:
     print('save (s): {}'.format((end-start)))
 
 run_details = "past_depth: {} \nfuture_depth: {} \nc :{} \
-               \npast_K: {} \nfuture_K: {} \nworksize: {} \nlc decay: 0.04 \nran as 'srun -n 2 python -m tbb -p 16 --ipc ./climate.py' ".format(past_depth, future_depth, c, past_K, future_K, worksize)
+               \npast_K: {} \nfuture_K: {} \nworksize: {} \nlc decay: 0.04 ".format(past_depth,
+                                                                                   future_depth,
+                                                                                   c,
+                                                                                   past_K,
+                                                                                   future_K,
+                                                                                   worksize)
 if rank == 0:
     full_end = time.time()
     print(run_details, flush=True)
