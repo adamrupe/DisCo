@@ -1,6 +1,4 @@
 import numpy as np
-#import types # not actually using this
-#import gc # not actually using right now, would it be useful?
 import daal4py as d4p
 
 from numba import njit
@@ -11,9 +9,8 @@ from itertools import product
 #import line_profiler
 
 
-# OPT: Is counter the best method here?
 #@profile
-def dist_from_data(X, Y, Nx, Ny):#, row_labels=False, column_labels=False):
+def dist_from_data(X, Y, Nx, Ny):
     '''
     Creates a conditional distribution P(X,Y) from sample observations of pairs (x,y).
     Joint distribution given as nd array. X and Y assumed to take values from
@@ -47,21 +44,12 @@ def dist_from_data(X, Y, Nx, Ny):#, row_labels=False, column_labels=False):
         X and Y; dist[i,j] = P(X=i, Y=j). Rows and columns are conditional distributions,
         e.g. dist[i] = P(Y | X=i).
     '''
-#     Nx = np.max(X) + 1
-#     Ny = np.max(Y) + 1
     dist = np.zeros((Nx, Ny), dtype=np.uint64)
 
     counts = Counter(zip(X,Y))
 
     for pair, count in counts.items():
         dist[pair] = count
-
-#     if row_labels:
-#         rlabels = np.arange(0, dist.shape[0], dtype=np.uint64)[np.newaxis]
-#         dist = np.hstack((rlabels.T,dist))
-#     if column_labels:
-#         clabels = np.arange(0, dist.shape[1], dtype=np.uint64)
-#         dist = np.vstack((clabels, dist))
 
     return dist
 
@@ -302,53 +290,6 @@ def lightcone_decay_2D(depth, c, decay_rate, future_lightcones=False):
 
     return np.exp(decays)
 
-# #@profile
-# @njit(parallel=True)
-# def mean_squared_error(target_field, prediction_field):
-#     '''
-#     Computes and returns the mean squared error between the given
-#     prediction field and target field.
-#     '''
-#     if target_field.shape != prediction_field.shape:
-#         raise ValueError("target_field and prediction_field must have same shape.")
-#     se = (target_field - prediction_field)**2
-#     mse = np.sum(se) / np.size(target_field)
-#     return mse
-
-
-# #@profile
-# def kmeans_lightcones(reconstructor, past_params, future_params,
-#                         past_decay=0, future_decay=0,
-#                         past_init_params=None, future_init_params=None):
-#     past_decays = lightcone_decay_2D(reconstructor.past_depth, reconstructor.c, past_decay, False)
-#     past_decays = np.sqrt(past_decays)
-#     past_lightcones = reconstructor.plcs * past_decays
-#     future_decays = lightcone_decay_2D(reconstructor.future_depth, reconstructor.c, future_decay, True)
-#     future_decays = np.sqrt(future_decays)
-#     future_lightcones = reconstructor.flcs * future_decays
-
-#     if past_init_params is None: # better way to do this?
-#         past_init_params = {'nClusters':past_params['nClusters'],
-#                                'method': 'plusPlusDense',
-#                                'distributed': True}
-#     initial = d4p.kmeans_init(**past_init_params)
-#     centroids = initial.compute(reconstructor.plcs).centroids*past_decays
-#     past_cluster = d4p.kmeans(**past_params).compute(past_lightcones, centroids)
-#     # store past clusters for later use in causal_filter and static_predict
-
-#     reconstructor.past_centroids = past_cluster.centroids # just for testing 
-
-#     #reconstructor.target_pasts = past_cluster.assignments.flatten()
-
-#     if future_init_params is None: # better way to do this?
-#         future_init_params = {'nClusters':future_params['nClusters'],
-#                                'method': 'plusPlusDense',
-#                                'distributed': True}
-#     initial = d4p.kmeans_init(**future_init_params)
-#     centroids = initial.compute(reconstructor.flcs).centroids*future_decays
-#     future_cluster = d4p.kmeans(**future_params).compute(future_lightcones, centroids)
-#     #reconstructor.futures = future_cluster.assignments.flatten()
-#     reconstructor.future_centroids = future_cluster.centroids # save for use in prediction
 
 
 class DiscoReconstructor(object):
@@ -455,98 +396,6 @@ class DiscoReconstructor(object):
                                                     self.c,
                                                     self._base_anchor)
 
-#     #@profile
-#     def cluster_lightcones(self, past_cluster, future_cluster,
-#                             past_params, future_params,
-#                             past_decay=0, future_decay=0,
-#                             past_init_params=None, future_init_params=None):
-#         '''
-#         Performs clustering on the master arrays of both past and future lightcones.
-
-#         Expects clustering algorithm to give integer cluster labels start at 0,
-#         with the "noise cluster" having label -1.
-
-#         Diagnostics of this clustering (what are the unique clusters and how many
-#         lightcones were assigned to each cluster) accessed through namedtuple
-#         Reconstructor.lc_cluster_diagnostic.
-
-#         *** Actually make revert back to original Reconstructor format; don't require
-#         sklearn objects for clustering -- but do save centroids***
-
-#         *** How is the call to distributed DAAL4PY clustering objects going to work with this? ***
-
-#         Parameters
-#         ----------
-#         past_cluster: str
-#             Determines which DAAL4PY clustering method is used. Currently only "keams" is supported
-
-#         future_cluster: str
-#             Determines which DAAL4PY clustering method is used. Currently only "keams" is supported
-
-#         past_params: dict,
-#             Dictionary of keword arguments for past lightcone clustering algorithm.
-
-#             If past_cluster == 'kmeans':
-#                 past_params must include values for 'nClusters' and 'maxIterations'
-#                 and must set 'assignFlag' to True
-
-#         future_params: dict,
-#             Dictionary of keword arguments for future lightcone clustering algorithm.
-
-#             If future_cluster == 'kmeans':
-#                 future_params must include values for 'nClusters' and 'maxIterations'
-#                 and must set 'assignFlag' to True
-
-#         past_decay: int, optional (default=0)
-#             Exponential decay rate for lightcone distance used for past lightcone clustering.
-
-#         future_decay: int, optional (default=0)
-#             Exponential decay rate for lightcone distance used for future lightcone clustering.
-#         '''
-#         # OPT: comment out for performance runs
-#         if self.plcs is None:
-#             raise RuntimeError("Must call .extract() on a training field(s) before calling .cluster_lightcones().")
-
-#         past_decays = lightcone_decay_2D(self.past_depth, self.c, past_decay, False)
-#         past_decays = np.sqrt(past_decays)
-#         past_lightcones = self.plcs * past_decays
-#         future_decays = lightcone_decay_2D(self.future_depth, self.c, future_decay, True)
-#         future_decays = np.sqrt(future_decays)
-#         future_lightcones = self.flcs * future_decays
-
-#         if past_cluster == 'kmeans':
-#             if past_init_params is None: # better way to do this?
-#                 past_init_params = {'nClusters':past_params['nClusters'],
-#                                        'method': 'plusPlusDense',
-#                                        'distributed': True}
-#             initial = d4p.kmeans_init(**past_init_params)
-#             centroids = initial.compute(past_lightcones).centroids
-#             past_cluster = d4p.kmeans(**past_params).compute(past_lightcones, centroids)
-#             # store past clusters for later use in causal_filter and static_predict
-#             #self.target_pasts = past_cluster.assignments.flatten()
-#             self.past_centroids = past_cluster.centroids
-#         elif past_cluster == 'dbscan':
-#             raise ValueError("dbscan not yet supported!")
-#         else:
-#             raise ValueError("past_cluster must be either 'kmeans' or 'dbscan'.")
-
-#         if future_cluster == 'kmeans':
-#             if future_init_params is None: # better way to do this?
-#                 future_init_params = {'nClusters':future_params['nClusters'],
-#                                        'method': 'plusPlusDense',
-#                                        'distributed': True}
-#             initial = d4p.kmeans_init(**future_init_params)
-#             centroids = initial.compute(future_lightcones).centroids
-#             future_cluster = d4p.kmeans(**future_params).compute(future_lightcones, centroids)
-#             #self.futures = future_cluster.assignments.flatten()
-#         elif future_cluster == 'dbscan':
-#             raise ValueError("dbscan not yet supported!")
-#         else:
-#             raise ValueError("future_cluster must be either 'kmeans' or 'dbscan'.")
-
-#         # REMINDER THAT IF D4P DBSCAN HAS NOISE, NEED TO ADD BACK CODE TO HANDLE THAT
-
-
     #@profile
     def kmeans_lightcones(self, past_params, future_params,
                             past_decay=0, future_decay=0,
@@ -573,7 +422,7 @@ class DiscoReconstructor(object):
 
             If past_cluster == 'kmeans':
                 past_params must include values for 'nClusters' and 'maxIterations'
-                
+
         future_params: dict,
             Dictionary of keword arguments for future lightcone clustering algorithm.
 
@@ -592,23 +441,15 @@ class DiscoReconstructor(object):
 
         past_decays = lightcone_decay_2D(self.past_depth, self.c, past_decay, False)
         self.plcs *= np.sqrt(past_decays)
-#         past_decays = np.sqrt(past_decays)
-#         past_lightcones = self.plcs * past_decays
-
-#         past_lightcones = self.plcs
 
         future_decays = lightcone_decay_2D(self.future_depth, self.c, future_decay, True)
         self.flcs *= np.sqrt(future_decays)
-#         future_decays = np.sqrt(future_decays)
-#         future_lightcones = self.flcs * future_decays
 
-#         future_lightcones = self.flcs
-        
         # Need these for dbscan version (after clustering)
         self._N_pasts = past_params['nClusters']
         self._N_futures = future_params['nClusters']
 
-        if past_init_params is None: # better way to do this?
+        if past_init_params is None:
             #method = 'randomDense'
             #method = 'parallelPlusDense'
             #method = 'plusPlusDense'
@@ -623,19 +464,15 @@ class DiscoReconstructor(object):
 #         print('done: past centroid calc', flush=True)
         past_cluster = d4p.kmeans(distributed=True, **past_params).compute(self.plcs, centroids)
 #         print('done: first pass past kmeans', flush=True)
-        #self.past_centroids = past_cluster.centroids # just for testing 
         past_local = d4p.kmeans(nClusters=self._N_pasts, distributed=False, assignFlag=True, maxIterations=0).compute(self.plcs, past_cluster.centroids)
 #         print('done: past cluster assignments', flush=True)
         self.pasts = past_local.assignments.flatten()
-        #self.pasts = np.ravel(past_local.assignments, order='A')
-#         self.pasts = past_local.assignments.reshape(-1)
 #         print('done: flatten the past assignments', flush=True)
-     
-        del past_cluster 
-        del self.plcs 
-#         del past_local
 
-        if future_init_params is None: # better way to do this?
+        del past_cluster
+        del self.plcs
+
+        if future_init_params is None:
             #method = 'randomDense'
             #method = 'parallelPlusDense'
             #method = 'plusPlusDense'
@@ -652,13 +489,11 @@ class DiscoReconstructor(object):
 #         print('done: first pass future kmeans', flush=True)
         future_local = d4p.kmeans(nClusters=self._N_futures, distributed=False, assignFlag=True, maxIterations=0).compute(self.flcs, future_cluster.centroids)
 #         print('done: past cluster assignments', flush=True)
-#         self.futures = future_local.assignments.reshape(-1)
         self.futures = future_local.assignments.flatten()
-        #self.futures = np.ravel(future_local.assignments)
 #         print('done: flatten the future assignments', flush=True)
 
         del future_cluster
-        del self.flcs 
+        del self.flcs
 
 
     #@profile
@@ -713,9 +548,9 @@ class DiscoReconstructor(object):
         future_lightcones = self.flcs * future_decays
 
         raise RuntimeError("dbscan not yet implemented!")
-        
+
         # Need to set self._N_pasts and self._N_futures here somewhere
-        
+
         # REMINDER THAT IF D4P DBSCAN HAS NOISE, NEED TO ADD BACK CODE TO HANDLE THAT
 
 
@@ -729,7 +564,7 @@ class DiscoReconstructor(object):
             raise RuntimeError("Must call .cluster_lightcones() before calling .reconstruct_morphs()")
         # morphs accessed through this joint distribution over pasts and futures
         # OPT: are the Counter objects suitably optimized?
-        self.local_joint_dist = dist_from_data(self.pasts, self.futures, self._N_pasts, self._N_futures)#, row_labels=True)
+        self.local_joint_dist = dist_from_data(self.pasts, self.futures, self._N_pasts, self._N_futures)
         self.global_joint_dist = np.zeros((self._N_pasts, self._N_futures), dtype=np.uint64)
 
         del self.futures
@@ -772,9 +607,9 @@ class DiscoReconstructor(object):
 #             raise RuntimeError("Must call .reconstruct_morphs() first.")
 
          # REMINDER THAT IF DBSCAN HAS NOISE, NEED TO ADD BACK CODE TO HANDLE THAT
-        
+
         # create past labels to keep track of after random permutation
-        rlabels = np.arange(0, self._N_pasts, dtype=np.uint64)[np.newaxis] 
+        rlabels = np.arange(0, self._N_pasts, dtype=np.uint64)[np.newaxis]
         self.global_joint_dist = np.hstack((rlabels.T, self.global_joint_dist))
 
         # for best h.a. clustering results, morph order should be randomized
@@ -782,7 +617,6 @@ class DiscoReconstructor(object):
         morphs = self.global_joint_dist
 
         self._label_map = np.zeros(self._N_pasts, dtype=int) # for vectorized causal_filter
-#         self._label_map = np.zeros(len(morphs)+1, dtype=int) # for vectorized causal_filter
 
         # hierarchical agglomerative clustering -- clusters pasts into local causal states
         # OPT: can get rid of self.epsilon_map for CS/GB runs; just need self._label_map
